@@ -1,6 +1,6 @@
 {
   "name": "@anhldh/gltf-animation-pointer-extensions",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "KHR_animation_pointer support for three.js (GLTFLoader) and gltf-transform.",
   "keywords": [
     "gltf",
