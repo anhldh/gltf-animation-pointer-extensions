@@ -1,77 +1,123 @@
-# React + TypeScript + Vite
+# @anhldh/gltf-animation-pointer-extensions
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Support for the glTF [`KHR_animation_pointer`](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_animation_pointer/README.md) extension on **both sides** of the pipeline:
 
-Currently, two official plugins are available:
+- **Runtime (three.js)** — load models that use `KHR_animation_pointer` with `GLTFLoader` (and drei's `useGLTF`). three.js does **not** support it by default, so those animations simply don't play.
+- **Build-time (gltf-transform)** — **preserve** `KHR_animation_pointer` channels while processing/optimizing a model. gltf-transform **drops** them by default.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## What is `KHR_animation_pointer`?
 
-## React Compiler
+The extension lets an animation target almost any property of a model via a JSON pointer — not just node transforms, but material factors / texture transforms, light parameters (`KHR_lights_punctual`), cameras, morph weights, visibility, and more. Because it lives outside "classic" animation, both three.js and gltf-transform ignore it unless a dedicated extension handles it.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Installation
 
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+pnpm add @anhldh/gltf-animation-pointer-extensions
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Peer dependencies are **optional** — install only the side you use:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+# runtime (three.js)
+pnpm add three
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+# build-time (gltf-transform)
+pnpm add @gltf-transform/core @gltf-transform/extensions
 ```
+
+## Usage — three.js
+
+### Plain GLTFLoader
+
+```ts
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFAnimationPointerExtension } from "@anhldh/gltf-animation-pointer-extensions";
+
+const loader = new GLTFLoader();
+loader.register((p) => new GLTFAnimationPointerExtension(p));
+
+const gltf = await loader.loadAsync("model.glb");
+// gltf.animations now contains tracks generated from KHR_animation_pointer
+```
+
+### React Three Fiber (drei `useGLTF`)
+
+The 4th argument of `useGLTF` is `extendLoader` — where you register the extension:
+
+```tsx
+import { useGLTF } from "@react-three/drei";
+import type {
+  GLTFLoader,
+  GLTFParser,
+} from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFAnimationPointerExtension } from "@anhldh/gltf-animation-pointer-extensions";
+
+const gltf = useGLTF(url, true, true, (loader) => {
+  // drei uses the three-stdlib GLTFLoader -> cast to three/examples.
+  const l = loader as unknown as GLTFLoader;
+  l.register((p: GLTFParser) => new GLTFAnimationPointerExtension(p));
+});
+```
+
+> `useGLTF` caches by URL, so `extendLoader` only runs on the first load of each URL.
+
+## Usage — gltf-transform
+
+When you run a gltf-transform pipeline (`weld`, `dedup`, `draco`, `resample`, `prune`, ...), `KHR_animation_pointer` channels are dropped by default. Register `KHRAnimationPointer` to read and write them back correctly — it automatically **remaps pointers to the new node/material indices** after transforms.
+
+```ts
+import { WebIO } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { KHRAnimationPointer } from "@anhldh/gltf-animation-pointer-extensions";
+
+const io = new WebIO().registerExtensions([
+  ...ALL_EXTENSIONS,
+  KHRAnimationPointer,
+]);
+
+const doc = await io.read(url); // preread: maps pointer -> Node/Material
+// ...doc.transform(...)...        // pointers follow Node/Material, stay correct
+const glb = await io.writeBinary(doc); // write: emits pointer with new indices
+```
+
+On Node, use `NodeIO` instead of `WebIO`:
+
+```ts
+import { NodeIO } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import { KHRAnimationPointer } from "@anhldh/gltf-animation-pointer-extensions";
+
+const io = new NodeIO().registerExtensions([
+  ...ALL_EXTENSIONS,
+  KHRAnimationPointer,
+]);
+
+const doc = await io.read("in.glb");
+await io.write("out.glb", doc);
+```
+
+## API
+
+**three.js side**
+
+- `GLTFAnimationPointerExtension` — plugin registered via `GLTFLoader.register(...)`.
+- `.setAnimationPointerResolver(resolver)` — customize how a pointer path maps to a three.js property.
+- `invalidateMaterialCache(root)` — clear the material cache when materials are swapped/cloned at runtime.
+- type `AnimationPointerResolver`.
+
+**gltf-transform side**
+
+- `KHRAnimationPointer` — `Extension` registered on the IO (`WebIO` / `NodeIO`).
+- `AnimationPointer` — `ExtensionProperty` attached to an `AnimationChannel`.
+- `KHR_ANIMATION_POINTER` — the extension-name constant (`"KHR_animation_pointer"`).
+
+## Notes
+
+- The three.js side patches `PropertyBinding.findNode` (global, once, guarded) so pointers can bind to material / texture / light / camera. Textures shared across materials are cloned before binding to avoid animating the wrong one.
+- If an animation fails, the extension returns an empty clip instead of breaking the whole model — the model still loads, only that animation is lost.
+- Published builds are **minified**; read the source on [GitHub](https://github.com/anhldh/gltf-animation-pointer-extensions).
+- ESM tree-shakes well — using only one side drops the other (and its peer dep) from the bundle. Under CJS (`require`) the other branch is still loaded, so prefer ESM.
+
+## License
+
+[MIT](https://github.com/anhldh/gltf-animation-pointer-extensions)
