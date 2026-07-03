@@ -21,10 +21,15 @@ export default defineConfig({
     emptyOutDir: true,
     minify: true, // esbuild — output lib nhẹ nhất; đọc code thì lên GitHub.
     lib: {
-      // Một entry duy nhất: index.ts export cả extension three lẫn gltf-transform.
-      entry: resolve(import.meta.dirname, "src/lib/index.ts"),
+      // Hai entry tách biệt: "." (three) và "./transform" (gltf-transform).
+      // Tách để import phía này không kéo peer dep của phía kia.
+      entry: {
+        index: resolve(import.meta.dirname, "src/lib/index.ts"),
+        transform: resolve(import.meta.dirname, "src/lib/transform.ts"),
+      },
       formats: ["es", "cjs"],
-      fileName: (format) => (format === "es" ? "index.js" : "index.cjs"),
+      fileName: (format, entryName) =>
+        `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
       // Peer dep do người dùng cung cấp, không bundle vào lib:

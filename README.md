@@ -68,7 +68,7 @@ When you run a gltf-transform pipeline (`weld`, `dedup`, `draco`, `resample`, `p
 ```ts
 import { WebIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
-import { KHRAnimationPointer } from "@anhldh/gltf-animation-pointer-extensions";
+import { KHRAnimationPointer } from "@anhldh/gltf-animation-pointer-extensions/transform";
 
 const io = new WebIO().registerExtensions([
   ...ALL_EXTENSIONS,
@@ -85,7 +85,7 @@ On Node, use `NodeIO` instead of `WebIO`:
 ```ts
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
-import { KHRAnimationPointer } from "@anhldh/gltf-animation-pointer-extensions";
+import { KHRAnimationPointer } from "@anhldh/gltf-animation-pointer-extensions/transform";
 
 const io = new NodeIO().registerExtensions([
   ...ALL_EXTENSIONS,
@@ -98,14 +98,14 @@ await io.write("out.glb", doc);
 
 ## API
 
-**three.js side**
+**three.js side** — from `@anhldh/gltf-animation-pointer-extensions`
 
 - `GLTFAnimationPointerExtension` — plugin registered via `GLTFLoader.register(...)`.
 - `.setAnimationPointerResolver(resolver)` — customize how a pointer path maps to a three.js property.
 - `invalidateMaterialCache(root)` — clear the material cache when materials are swapped/cloned at runtime.
 - type `AnimationPointerResolver`.
 
-**gltf-transform side**
+**gltf-transform side** — from `@anhldh/gltf-animation-pointer-extensions/transform`
 
 - `KHRAnimationPointer` — `Extension` registered on the IO (`WebIO` / `NodeIO`).
 - `AnimationPointer` — `ExtensionProperty` attached to an `AnimationChannel`.
@@ -116,7 +116,7 @@ await io.write("out.glb", doc);
 - The three.js side patches `PropertyBinding.findNode` (global, once, guarded) so pointers can bind to material / texture / light / camera. Textures shared across materials are cloned before binding to avoid animating the wrong one.
 - If an animation fails, the extension returns an empty clip instead of breaking the whole model — the model still loads, only that animation is lost.
 - Published builds are **minified**; read the source on [GitHub](https://github.com/anhldh/gltf-animation-pointer-extensions).
-- ESM tree-shakes well — using only one side drops the other (and its peer dep) from the bundle. Under CJS (`require`) the other branch is still loaded, so prefer ESM.
+- The two sides are separate entry points — `.` (three.js) and `/transform` (gltf-transform). Importing one never loads the other's peer dependency, so you only need the peer dep of the side you actually import.
 
 ## License
 
