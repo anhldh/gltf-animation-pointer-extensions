@@ -133,7 +133,7 @@ await io.write("out.glb", doc);
 
 ## Author
 
-Made by **Hoàng Anh** ([@anhldh](https://github.com/anhldh)), a developer working on 3D for the web with three.js, React Three Fiber and glTF pipelines.
+Made by **Hoàng Anh** ([@anhldh](https://github.com/anhldh))
 
 - Website: [anhldh.com](https://anhldh.com)
 - Online glTF viewer: [gltf.info](https://gltf.info)
